@@ -1,7 +1,7 @@
-import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface AuthResult {
-  user: { id: string; email: string | null } | null;
+  user: { id: string; email: string | null; isAdmin: boolean } | null;
   error: string | null;
 }
 
@@ -30,5 +30,24 @@ export async function requireUser(
     return { user: null, error: 'Invalid or expired session.' };
   }
 
-  return { user: { id: data.user.id, email: data.user.email ?? null }, error: null };
+  const isAdmin = data.user.app_metadata?.role === 'admin';
+  return { user: { id: data.user.id, email: data.user.email ?? null, isAdmin }, error: null };
+}
+
+/**
+ * Like requireUser, but also rejects any signed-in user who isn't flagged
+ * as admin (via app_metadata.role = 'admin', set server-side — regular
+ * sign-ups can never set this themselves). Use this for all listing
+ * create/update/delete endpoints so only the admin account can manage data.
+ */
+export async function requireAdmin(
+  req: Request,
+  admin: SupabaseClient,
+): Promise<AuthResult> {
+  const result = await requireUser(req, admin);
+  if (!result.user) return result;
+  if (!result.user.isAdmin) {
+    return { user: null, error: 'Admin access required.' };
+  }
+  return result;
 }

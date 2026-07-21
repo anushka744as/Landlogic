@@ -21,7 +21,8 @@ function App() {
   const [tab, setTab] = useState<TabId>('listings');
   const { properties, loading, error, refetch } = useProperties();
   const { theme, toggle } = useTheme();
-  const { user, isAuthenticated, signOut } = useAuth();
+  const { user, isAuthenticated, isAdmin, signOut } = useAuth();
+  console.log('DEBUG auth:', { email: user?.email, isAdmin, app_metadata: user?.app_metadata });
   const [showAuth, setShowAuth] = useState(false);
 
   return (
@@ -116,13 +117,11 @@ function App() {
         ) : (
           <PageTransition pageKey={tab}>
             {tab === 'listings' ? (
-              <ListingsPage
-                properties={properties}
-                loading={loading}
-                isAuthenticated={isAuthenticated}
-                onRequireAuth={() => setShowAuth(true)}
-                onChanged={refetch}
-              />
+             <ListingsPage
+  properties={properties}
+  loading={loading}
+  onChanged={refetch}
+/>
             ) : tab === 'insights' ? (
               <InsightsPage properties={properties} loading={loading} />
             ) : (

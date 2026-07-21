@@ -36,5 +36,14 @@ export function useAuth() {
     await supabase.auth.signOut();
   }
 
-  return { session, user, loading, isAuthenticated: !!user, signIn, signUp, signOut };
+  return {
+    session,
+    user,
+    loading,
+    isAuthenticated: !!user,
+    isAdmin: user?.app_metadata?.role === 'admin',
+    signIn,
+    signUp,
+    signOut,
+  };
 }

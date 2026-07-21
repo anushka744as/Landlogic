@@ -14,15 +14,15 @@ export function useProperties() {
       // The backend still supports server-side search/filter/pagination for
       // callers that want it (see propertiesApi.list filters).
       const limit = 100;
-      let page = 1;
-      let all: Property[] = [];
-      for (;;) {
-        const { data, pagination } = await propertiesApi.list({ page, limit, sort: 'distance' });
-        all = all.concat(data);
-        if (page >= pagination.totalPages) break;
-        page += 1;
-      }
-      setProperties(all);
+let page = 1;
+const byId = new Map<string, Property>();
+for (;;) {
+  const { data, pagination } = await propertiesApi.list({ page, limit, sort: 'distance' });
+  for (const p of data) byId.set(p.id, p);
+  if (page >= pagination.totalPages) break;
+  page += 1;
+}
+setProperties(Array.from(byId.values()));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load properties.');

@@ -4,16 +4,19 @@
 // PATCH  /properties/:id         -> update (auth required)
 // DELETE /properties/:id         -> delete (auth required)
 
+// Use a std version compatible with the runtime/type declarations to avoid
+// "Cannot find module" errors when resolving remote types.
+import { serve } from 'https://deno.land/std@0.201.0/http/server.ts';
 import { handleOptions, json, errorResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/supabaseAdmin.ts';
-import { requireUser } from '../_shared/auth.ts';
+import { requireAdmin } from '../_shared/auth.ts';
 import { propertyCreateSchema, propertyUpdateSchema } from '../_shared/validation.ts';
 
 const ALLOWED_SORT = new Set([
   'distance', 'price_asc', 'price_desc', 'value_desc', 'newest', 'oldest',
 ]);
 
-Deno.serve(async (req: Request) => {
+serve(async (req: Request) => {
   const opt = handleOptions(req);
   if (opt) return opt;
 
@@ -66,13 +69,18 @@ async function listProperties(admin: ReturnType<typeof getAdminClient>, url: URL
   if (minBeds) query = query.gte('bedrooms', Number(minBeds));
 
   switch (sort) {
-    case 'price_asc': query = query.order('price_inr', { ascending: true }); break;
-    case 'price_desc': query = query.order('price_inr', { ascending: false }); break;
-    case 'value_desc': query = query.order('price_per_sqft', { ascending: false }); break;
-    case 'newest': query = query.order('listed_on', { ascending: false }); break;
-    case 'oldest': query = query.order('listed_on', { ascending: true }); break;
-    default: query = query.order('distance_to_tata_steel_km', { ascending: true, nullsFirst: false });
-  }
+  case 'price_asc': query = query.order('price_inr', { ascending: true }); break;
+  case 'price_desc': query = query.order('price_inr', { ascending: false }); break;
+  case 'value_desc': query = query.order('price_per_sqft', { ascending: false }); break;
+  case 'newest': query = query.order('listed_on', { ascending: false }); break;
+  case 'oldest': query = query.order('listed_on', { ascending: true }); break;
+  default: query = query.order('distance_to_tata_steel_km', { ascending: true, nullsFirst: false });
+}
+// Stable tiebreaker: many rows share the same (or null) primary sort value,
+// so without a unique secondary key, Postgres can return a different order
+// across separate paginated requests — causing the same row to appear on
+// two pages (or be skipped entirely) when the frontend walks all pages.
+query = query.order('id', { ascending: true });
 
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -95,9 +103,8 @@ async function getProperty(admin: ReturnType<typeof getAdminClient>, id: string)
 }
 
 async function createProperty(req: Request, admin: ReturnType<typeof getAdminClient>) {
-  const { user, error: authError } = await requireUser(req, admin);
-  if (!user) return errorResponse(authError ?? 'Unauthorized', 401);
-
+  const { user, error: authError } = await requireAdmin(req, admin);
+  if (!user) return errorResponse(authError ?? 'Unauthorized', authError === 'Admin access required.' ? 403 : 401);
   const body = await req.json().catch(() => null);
   if (!body) return errorResponse('Invalid JSON body');
 
@@ -112,9 +119,8 @@ async function createProperty(req: Request, admin: ReturnType<typeof getAdminCli
 }
 
 async function updateProperty(req: Request, admin: ReturnType<typeof getAdminClient>, id: string) {
-  const { user, error: authError } = await requireUser(req, admin);
-  if (!user) return errorResponse(authError ?? 'Unauthorized', 401);
-
+  const { user, error: authError } = await requireAdmin(req, admin);
+  if (!user) return errorResponse(authError ?? 'Unauthorized', authError === 'Admin access required.' ? 403 : 401);
   const body = await req.json().catch(() => null);
   if (!body) return errorResponse('Invalid JSON body');
 
@@ -138,9 +144,8 @@ async function updateProperty(req: Request, admin: ReturnType<typeof getAdminCli
 }
 
 async function deleteProperty(req: Request, admin: ReturnType<typeof getAdminClient>, id: string) {
-  const { user, error: authError } = await requireUser(req, admin);
-  if (!user) return errorResponse(authError ?? 'Unauthorized', 401);
-
+  const { user, error: authError } = await requireAdmin(req, admin);
+  if (!user) return errorResponse(authError ?? 'Unauthorized', authError === 'Admin access required.' ? 403 : 401);
   const { error, count } = await admin
     .from('properties')
     .delete({ count: 'exact' })
@@ -149,3 +154,4 @@ async function deleteProperty(req: Request, admin: ReturnType<typeof getAdminCli
   if (!count) return errorResponse('Property not found', 404);
   return json({ data: { id, deleted: true } });
 }
+

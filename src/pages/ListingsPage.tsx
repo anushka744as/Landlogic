@@ -16,14 +16,12 @@ type TableDir = 'asc' | 'desc';
 export default function ListingsPage({
   properties,
   loading,
-  isAuthenticated = false,
-  onRequireAuth = () => {},
+  isAdmin = false,
   onChanged = () => {},
 }: {
   properties: Property[];
   loading: boolean;
-  isAuthenticated?: boolean;
-  onRequireAuth?: () => void;
+  isAdmin?: boolean;
   onChanged?: () => void;
 }) {
   const [locality, setLocality] = useState<string>('all');
@@ -56,14 +54,6 @@ export default function ListingsPage({
   }, [search]);
 
   const baseList = searchResults ?? properties;
-
-  const requireAuthOr = (action: () => void) => {
-    if (!isAuthenticated) {
-      onRequireAuth();
-      return;
-    }
-    action();
-  };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this listing? This cannot be undone.')) return;
@@ -138,12 +128,14 @@ export default function ListingsPage({
                 <TableIcon className="h-4 w-4" /> Table
               </button>
             </div>
-            <button
-              onClick={() => requireAuthOr(() => setFormOpen('create'))}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold shadow-glow transition-colors"
-            >
-              <Plus className="h-4 w-4" /> Add listing
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setFormOpen('create')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold shadow-glow transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Add listing
+              </button>
+            )}
           </div>
         }
       />
@@ -234,8 +226,9 @@ export default function ListingsPage({
               key={p.id}
               property={p}
               index={i}
-              onEdit={() => requireAuthOr(() => setFormOpen(p))}
-              onDelete={() => requireAuthOr(() => handleDelete(p.id))}
+              isAdmin={isAdmin}
+              onEdit={() => setFormOpen(p)}
+              onDelete={() => handleDelete(p.id)}
               deleting={deletingId === p.id}
             />
           ))}
@@ -243,8 +236,9 @@ export default function ListingsPage({
       ) : (
         <PropertiesTable
           properties={filtered}
-          onEdit={(p) => requireAuthOr(() => setFormOpen(p))}
-          onDelete={(p) => requireAuthOr(() => handleDelete(p.id))}
+          isAdmin={isAdmin}
+          onEdit={(p) => setFormOpen(p)}
+          onDelete={(p) => handleDelete(p.id)}
           deletingId={deletingId}
         />
       )}
@@ -255,12 +249,14 @@ export default function ListingsPage({
 function PropertyCard({
   property: p,
   index,
+  isAdmin,
   onEdit,
   onDelete,
   deleting,
 }: {
   property: Property;
   index: number;
+  isAdmin?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
   deleting?: boolean;
@@ -271,23 +267,25 @@ function PropertyCard({
       className="group relative bg-white dark:bg-ink-800 rounded-2xl border border-ink-100 dark:border-ink-700 shadow-card dark:shadow-card-dark hover:shadow-cardHover hover:-translate-y-0.5 transition-all duration-300 overflow-hidden animate-fade-in-up"
       style={{ animationDelay: `${Math.min(index * 40, 320)}ms` }}
     >
-      <div className="absolute top-3 right-4 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={onEdit}
-          title="Edit listing"
-          className="h-7 w-7 grid place-items-center rounded-lg bg-white/90 hover:bg-white text-ink-700 shadow-sm"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={onDelete}
-          disabled={deleting}
-          title="Delete listing"
-          className="h-7 w-7 grid place-items-center rounded-lg bg-white/90 hover:bg-white text-danger-600 shadow-sm disabled:opacity-50"
-        >
-          {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="absolute top-3 right-4 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={onEdit}
+            title="Edit listing"
+            className="h-7 w-7 grid place-items-center rounded-lg bg-white/90 hover:bg-white text-ink-700 shadow-sm"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            title="Delete listing"
+            className="h-7 w-7 grid place-items-center rounded-lg bg-white/90 hover:bg-white text-danger-600 shadow-sm disabled:opacity-50"
+          >
+            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      )}
       <div className="relative h-24 bg-gradient-to-br from-brand-600 to-brand-800 overflow-hidden">
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, white 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
         <div className="absolute top-3 left-4 text-white/90 text-xs font-semibold tracking-wide uppercase">{p.property_type}</div>
@@ -317,16 +315,16 @@ function PropertyCard({
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 text-sm">
-  <Spec icon={<BedDouble className="h-4 w-4" />} label="Bedrooms" value={p.bedrooms ? `${p.bedrooms} BHK` : 'Plot'} />
-  <Spec icon={<Bath className="h-4 w-4" />} label="Bathrooms" value={p.bathrooms ? p.bathrooms.toString() : '—'} />
-  <Spec icon={<Maximize className="h-4 w-4" />} label="Area" value={p.area_sqft != null ? `${p.area_sqft.toLocaleString('en-IN')} sqft` : '—'} />
-  <Spec icon={<Gauge className="h-4 w-4" />} label="Rate" value={p.price_per_sqft != null ? `₹${p.price_per_sqft.toLocaleString('en-IN')}/sqft` : '—'} />
-</div>
+          <Spec icon={<BedDouble className="h-4 w-4" />} label="Bedrooms" value={p.bedrooms ? `${p.bedrooms} BHK` : 'Plot'} />
+          <Spec icon={<Bath className="h-4 w-4" />} label="Bathrooms" value={p.bathrooms ? p.bathrooms.toString() : '—'} />
+          <Spec icon={<Maximize className="h-4 w-4" />} label="Area" value={p.area_sqft != null ? `${p.area_sqft.toLocaleString('en-IN')} sqft` : '—'} />
+          <Spec icon={<Gauge className="h-4 w-4" />} label="Rate" value={p.price_per_sqft != null ? `₹${p.price_per_sqft.toLocaleString('en-IN')}/sqft` : '—'} />
+        </div>
 
-<div className="flex items-center justify-between pt-1 border-t border-ink-100 dark:border-ink-700">
-  <StatPill label="Listed" value={p.listed_on ? new Date(p.listed_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'} />
-  <StatPill label="Lat/Lng" value={p.latitude != null && p.longitude != null ? `${p.latitude.toFixed(3)}, ${p.longitude.toFixed(3)}` : '—'} tone="neutral" />
-</div>
+        <div className="flex items-center justify-between pt-1 border-t border-ink-100 dark:border-ink-700">
+          <StatPill label="Listed" value={p.listed_on ? new Date(p.listed_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'} />
+          <StatPill label="Lat/Lng" value={p.latitude != null && p.longitude != null ? `${p.latitude.toFixed(3)}, ${p.longitude.toFixed(3)}` : '—'} tone="neutral" />
+        </div>
       </div>
     </article>
   );
@@ -420,11 +418,13 @@ function Select({
 
 function PropertiesTable({
   properties,
+  isAdmin,
   onEdit,
   onDelete,
   deletingId,
 }: {
   properties: Property[];
+  isAdmin?: boolean;
   onEdit?: (p: Property) => void;
   onDelete?: (p: Property) => void;
   deletingId?: string | null;
@@ -477,7 +477,7 @@ function PropertiesTable({
               {col('Area (sqft)', 'area_sqft')}
               {col('BHK', 'bedrooms')}
               {col('Dist to Tata Steel', 'distance_to_tata_steel_km')}
-              <th className="text-right px-5 py-3 font-semibold">Actions</th>
+              {isAdmin && <th className="text-right px-5 py-3 font-semibold">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100 dark:divide-ink-700">
@@ -495,28 +495,30 @@ function PropertiesTable({
                   <td className="px-5 py-3 text-ink-600 dark:text-ink-300">{p.locality}</td>
                   <td className="px-5 py-3 text-right font-bold text-ink-900 dark:text-white">{formatINR(p.price_inr)}</td>
                   <td className="px-5 py-3 text-right text-ink-600 dark:text-ink-300">{p.price_per_sqft != null ? `₹${p.price_per_sqft.toLocaleString('en-IN')}` : '—'}</td>
-<td className="px-5 py-3 text-right text-ink-600 dark:text-ink-300">{p.area_sqft != null ? p.area_sqft.toLocaleString('en-IN') : '—'}</td>
- <td className="px-5 py-3 text-right text-ink-600 dark:text-ink-300">{p.bedrooms ? `${p.bedrooms} BHK` : 'Plot'}</td>
+                  <td className="px-5 py-3 text-right text-ink-600 dark:text-ink-300">{p.area_sqft != null ? p.area_sqft.toLocaleString('en-IN') : '—'}</td>
+                  <td className="px-5 py-3 text-right text-ink-600 dark:text-ink-300">{p.bedrooms ? `${p.bedrooms} BHK` : 'Plot'}</td>
                   <td className="px-5 py-3 text-right"><StatPill label="" value={formatKm(p.distance_to_tata_steel_km)} tone="brand" /></td>
-                  <td className="px-5 py-3 text-right">
-                    <div className="inline-flex items-center gap-1.5">
-                      <button
-                        onClick={() => onEdit?.(p)}
-                        title="Edit listing"
-                        className="h-7 w-7 grid place-items-center rounded-lg hover:bg-ink-100 dark:hover:bg-ink-700 text-ink-500 dark:text-ink-300"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => onDelete?.(p)}
-                        disabled={deletingId === p.id}
-                        title="Delete listing"
-                        className="h-7 w-7 grid place-items-center rounded-lg hover:bg-ink-100 dark:hover:bg-ink-700 text-danger-600 disabled:opacity-50"
-                      >
-                        {deletingId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
-                  </td>
+                  {isAdmin && (
+                    <td className="px-5 py-3 text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          onClick={() => onEdit?.(p)}
+                          title="Edit listing"
+                          className="h-7 w-7 grid place-items-center rounded-lg hover:bg-ink-100 dark:hover:bg-ink-700 text-ink-500 dark:text-ink-300"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onDelete?.(p)}
+                          disabled={deletingId === p.id}
+                          title="Delete listing"
+                          className="h-7 w-7 grid place-items-center rounded-lg hover:bg-ink-100 dark:hover:bg-ink-700 text-danger-600 disabled:opacity-50"
+                        >
+                          {deletingId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               );
             })}
